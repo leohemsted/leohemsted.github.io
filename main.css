@@ -1,0 +1,45 @@
+/*flex layout inspired by the excellent https://css-tricks.com/snippets/css/a-guide-to-flexbox/ tutorial*/
+
+body {
+    font-family: helvetica, sans-serif;
+}
+
+.content {
+    display: -webkit-flex;
+    display: flex;
+
+}
+
+.nav {
+    text-align: center;
+}
+
+.content > * {
+  padding: 10px;
+  flex: 1 100%;
+}
+
+
+/*big screens. todo: DPI independency?*/
+@media all and (min-width: 800px) {
+    .main {
+        text-align: left;
+        flex: 2;
+    }
+    .nav {
+        text-align: right;
+        flex: 1;
+    }
+
+    .nav { order: 1; }
+    .main { order: 2;  }
+}
+/*styling*/
+ul {
+    list-style-type: none;
+    padding: 0;
+    margin-bottom: 5px;
+}
+a {
+    display: block;
+}
