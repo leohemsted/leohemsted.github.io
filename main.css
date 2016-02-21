@@ -40,7 +40,7 @@ ul {
 }
 
 .selected {
-    background-color: grey;
+    background-color: #ccc;
 }
 
 a {

@@ -10,19 +10,21 @@ var selectNavOption = function(event) {
 
 var loadContent = function(url) {
     var xhr = new XMLHttpRequest();
-    xhr.addEventListener("load", function(){
+    xhr.addEventListener('load', function(){
         document.getElementById('main').innerHTML = this.responseText;
     });
     xhr.open('GET', url);
     xhr.send();
 };
 
-// get all the links in the navbar with the internal class - we'll want those to trigger our single page app loading shenanigans. The external links we can just ignore
-Array.prototype.slice.call(document.querySelectorAll('.nav a.internal')).map(
-    function(x){
-        x.onclick = selectNavOption;
-});
+window.onload = function(){
+    // get all the links in the navbar with the internal class - we'll want those to trigger our single page app loading shenanigans. The external links we can just ignore
+    Array.prototype.slice.call(document.querySelectorAll('.nav a.internal')).map(
+        function(x){
+            x.onclick = selectNavOption;
+        });
 
-// select the first element and load its content
-document.querySelector('.nav li').classList.add('selected');
-loadContent('content/index.html');
+        // select the first element and load its content
+        document.querySelector('.nav li').classList.add('selected');
+        loadContent('content/index.html');
+};
