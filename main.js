@@ -1,14 +1,19 @@
 var selectNavOption = function(event) {
     event.preventDefault();
 
+    // update selection
     document.querySelector('.selected').classList.remove('selected');
     event.currentTarget.parentElement.classList.add('selected');
 
+    loadContent(event.currentTarget.getAttribute('data-content-url'));
+};
+
+var loadContent = function(url) {
     var xhr = new XMLHttpRequest();
     xhr.addEventListener("load", function(){
         document.getElementById('main').innerHTML = this.responseText;
     });
-    xhr.open('GET', event.currentTarget.getAttribute('data-content-url'));
+    xhr.open('GET', url);
     xhr.send();
 };
 
@@ -18,7 +23,6 @@ Array.prototype.slice.call(document.querySelectorAll('.nav a.internal')).map(
         x.onclick = selectNavOption;
 });
 
-
-
-// select the first element
+// select the first element and load its content
 document.querySelector('.nav li').classList.add('selected');
+loadContent('content/index.html');

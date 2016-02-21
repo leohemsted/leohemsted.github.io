@@ -15,7 +15,6 @@ body {
     flex: 1 100%;
 }
 
-
 /*big screens. todo: DPI independency?*/
 @media all and (min-width: 800px) {
     .content > * {
@@ -40,10 +39,15 @@ ul {
     display: block;
 }
 
-ul .selected {
+.selected {
     background-color: grey;
 }
 
+a {
+    color: inherit;
+}
+
+/*TODO: When i've removed pdf remove this iframe css too*/
 iframe {
     width: 100%;
     height: 100%;
