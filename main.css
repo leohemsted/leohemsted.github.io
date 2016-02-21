@@ -40,6 +40,10 @@ ul {
     display: block;
 }
 
+ul .selected {
+    background-color: grey;
+}
+
 iframe {
     width: 100%;
     height: 100%;
