@@ -1,6 +1,7 @@
 /*flex layout inspired by the excellent https://css-tricks.com/snippets/css/a-guide-to-flexbox/ tutorial*/
 
 body {
+    /* https://www.youtube.com/watch?v=WaiP76-Vmzw */
     font-family: helvetica, sans-serif;
 }
 
@@ -32,20 +33,21 @@ body {
     }
 }
 
-ul {
+.nav ul {
     list-style-type: none;
     padding: 0;
     margin-bottom: 5px;
     display: block;
 }
 
-.selected {
+.nav .selected {
     background-color: #ccc;
 }
 
-a {
+.nav a {
     color: inherit;
 }
+
 
 /*TODO: When i've removed pdf remove this iframe css too*/
 iframe {

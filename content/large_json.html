@@ -1,15 +1,34 @@
-lorem ipsum blah blah
+A recent project I was involved in included refactoring a bespoke bin-packing algorithm that had, through continual design changes and refactoring, become unwieldy and unmaintainable. The decision was made to spin it out into a separate microservice (from the main monolithic postgres-backed python webserver). We took this approach for a few reasons:
+
+<ul>
+    <li>By forcing separation from the database twe hoped to encourage cleaner implementation</li>
+    <li>Greater extensibility thanks to separate release cycles</li>
+    <li>General separation of concerns</li>
+    <li>A pinch of curiosity</li>
+    <li>Plenty of other microservice benefits that I won't go into here <sup><a id="ref1" href="#footnote1">1</a></sup></li>
+</ul>
+
+We duly set about splitting out the code, and created a new endpoint <code>/bin_pack</code> which used requests to call off to our new microservice.
 
 <pre>
     <code class="language-python">
-    # this is a comment
-    def foo(a):
-        return a + 1 + "string"
+    data = {
+        'widgets': [...],
+        'bins': [...]
+    }
+    resp = requests.post(microservice_url, json=data)
+    process_response(resp.json())
     </code>
 </pre>
+
+This code worked fine during early testing, however, when we tried to scale up our systems we started running into problems. Our bin-filling algorithm results in an incredibly large amount of bins, all containing 10 to 20 or so 
 
 <pre>
     <code class="language-json">
     { "a" : 2, "b": true}
     </code>
 </pre>
+
+
+<hr/>
+<sup id="fn1">1. Phil Calcaldo's excellent blog post <a href="http://philcalcado.com/2015/09/08/how_we_ended_up_with_microservices.html" target="_blank">"How we ended up with microservices"</a> is a fantastic read<a href="#ref1" title="">↩</a></sup>
