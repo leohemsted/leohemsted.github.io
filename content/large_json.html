@@ -1,12 +1,18 @@
-A recent project I was involved in included refactoring a bespoke bin-packing algorithm that had, through continual design changes and refactoring, become unwieldy and unmaintainable. The decision was made to spin it out into a separate microservice (from the main monolithic postgres-backed python webserver). We took this approach for a few reasons:
+<h1>Handling large JSON in python, or how I can't come up with a sexy blog title</h1>
+
+A recent project I was involved in included refactoring a bespoke bin-packing algorithm that had, through continual design changes and rework, become unwieldy and unmaintainable. The decision was made to spin it out into a separate microservice (from the main monolithic python webserver). We took this approach for a few reasons:
 
 <ul>
-    <li>By forcing separation from the database twe hoped to encourage cleaner implementation</li>
+    <li>By forcing separation from the database we hoped to encourage cleaner implementation</li>
     <li>Greater extensibility thanks to separate release cycles</li>
     <li>General separation of concerns</li>
     <li>A pinch of curiosity</li>
     <li>Plenty of other microservice benefits that I won't go into here <sup><a id="ref1" href="#footnote1">1</a></sup></li>
 </ul>
+
+However, during the switch, we ran into a few problems around memory and performance when consuming a large amount of json data from an HTTP response, and inserting it into the database. Here's how that went down.
+
+<h2> The beginning </h2>
 
 We duly set about splitting out the code, and created a new endpoint <code>/bin_pack</code> which used requests to call off to our new microservice.
 
@@ -21,14 +27,161 @@ We duly set about splitting out the code, and created a new endpoint <code>/bin_
     </code>
 </pre>
 
-This code worked fine during early testing, however, when we tried to scale up our systems we started running into problems. Our bin-filling algorithm results in an incredibly large amount of bins, all containing 10 to 20 or so 
+This code worked fine during early testing, however, when we tried to scale up our systems we started running into problems. Our bin-filling algorithm results in an incredibly large amount of bins, all containing 10 to 20 or so small structures. The data returned from the service looked something along the lines of
 
 <pre>
     <code class="language-json">
-    { "a" : 2, "b": true}
+    {
+        "bins": [
+            {
+                "bin_uuid": "00000000-0000-0000-0000-000000000000",
+                "items": [
+                    {
+                        "item_uuid_a": "00000000-0000-0000-0000-000000000000",
+                        "item_uuid_b": "00000000-0000-0000-0000-000000000000",
+                    },
+                    ... * ~10
+                ]
+            },
+            ... * ~100,000 (one bin per showing for two weeks in a large cinema chain)
+        ]
+    }
     </code>
 </pre>
 
+Once this data (~100mb) returned to the main monolith, we set about processing it. There isn't much to do with it other than put it straight into our database, so we went through several iterations. First, the totally naive approach that we initially prototyped
+
+<pre>
+    <code class="language-python">
+    ...
+    for bin in data['bins']:
+        for item in bin['items']:
+            db.Session.add(db.Thing(
+                uuid=item['item_uuid_a'],
+                other_uuid=item['item_uuid_b'],
+                bin_uuid=bin['bin_uuid']
+            ))
+    db.Session.commit()
+    # Fetching request took 6.33s
+    # Loading JSON took 5.56s
+    # Processing took 14.19s
+    # Committing took 57.72s
+    # Entire process took 83.81s
+    </code>
+</pre>
+
+We generated a 20,000 bin test data set and threw in some straightforward time logging, and the results weren't pretty. It took 10 seconds to retrieve and json dump the data, then another half a minute to process it, and then 75 seconds to actually commit to the database. This clearly wasn't going to scale nicely up to five times the data-set, so what could we do? Luckily, SQLAlchemy provides us with a few avenues of attack.
+
+<h2>The SQL</h2>
+
+Firstly, SQLAlchemy 1.0 provided some brand new <a href="http://docs.sqlalchemy.org/en/rel_1_0/orm/persistence_techniques.html#bulk-operations">bulk operations</a>, which seemed perfect for our usecase. Plugging them in was pretty straightforward, too.
+
+
+<pre>
+    <code class="language-python">
+    things = []
+    for bin in data['bins']:
+        things += [
+            db.Thing(
+                uuid=item['item_uuid_a'],
+                other_uuid=item['item_uuid_b'],
+                bin_uuid=bin['bin_uuid']
+            )
+            for item in bin['items']
+        ]
+    db.Session.bulk_save_objects(things)
+    # Entire process took 66.92s
+    </code>
+</pre>
+
+Closer to the bone still, we can get rid of a lot of the ORM constructs by looking at SQLAlchemy core. The ORM adds a lot of cruft around making objects more useable and more aligned with OO patterns, so by getting away from that and closer to the core ORM we hoped to cut out a lot of time.
+
+<pre>
+    <code class="language-python">
+    bins = []
+    things = []
+    for i, bin in enumerate(data['bins']):
+        things += [
+            {
+                'uuid': item['item_uuid_a'],
+                'other_uuid': item['item_uuid_b'],
+                'bin_uuid': bin['bin_uuid']
+            }
+            for item in bin['items']
+        ]
+    db.engine.execute(
+        db.Thing.__table__.insert(),
+        things
+    )
+    # Entire process took 58.39s
+    </code>
+</pre>
+
+We're getting better, but it's still a lot longer than I'd like! - and 80% of the time is hitting the DB. Luckily, we're using Postgres, which has the delightful <a href="http://www.postgresql.org/docs/current/interactive/populate.html#POPULATE-COPY-FROM
+">COPY FROM</a> command, designed for populating large swathes of homogenous data (as opposed to the much more flexible ANSI SQL insert statement). It takes in a delimited filelike object and an array of column names, and pipes them straight into the database.
+
+<pre>
+    <code class="language-python">
+    string_io = io.StringIO()
+    for bin in data['bins']:
+        for item in bin['items']:
+            # write a tab separated file to the stringio
+            string_io.write(
+                '\t'.join([
+                    item['item_uuid_a'],
+                    item['item_uuid_b'],
+                    bin['bin_uuid']
+                ]) + '\n'
+            )
+    # rewind
+    string_io.seek(0)
+
+    connection = db.engine.raw_connection()
+    cur = connection.cursor()
+    cur.copy_from(
+        string_io,  # filelike obj
+        'thing',  # table name
+        sep='\t',  # separator
+        columns=['uuid', 'other_uuid', 'bin_uuid']
+    )
+    connection.commit()
+    connection.close()
+    # Fetching request took 6.12s
+    # Loading JSON took 5.59s
+    # Processing took 0.26s
+    # Copy From took 8.06s
+    # Entire process took 20.03s
+    </code>
+</pre>
+
+A huge saving! We've gone from 72 seconds of processing down to just 8.3 seconds! We weren't too enthusastic about mucking about with raw cursors and TSVs, but the ten-fold performance increase is undeniably huge, so we decided to refocus our efforts on improving the JSON handling.
+
+<h2>The JSON</h2>
+
+It's still taking 11 seconds from firing off the request (in our harness, the other service was just loading the json from disk each time), and we'd like to get that down.
+
+The first obvious step is to improve how we parse the data. <a href="https://github.com/esnme/ultrajson">ujson" is a blisteringly fast json library
+
+<pre>
+    <code class="language-python">
+    resp = requests.get('http://127.0.0.1:8080/filled_bins')
+    data = ujson.loads(resp.text)
+    # Fetching request took 6.87s
+    # Loading JSON took 1.08s
+
+    # and now with the raw filelike rather than storing all in memory as a string
+    resp = requests.get('http://127.0.0.1:8080/filled_bins', stream=True)
+    data = ujson.load(resp.raw)
+    # Fetching request took 7.03s
+    # Loading JSON took 0.59s
+    </code>
+</pre>
+
+Instant win! But for the raw file pointer, I had to pass stream=True into the request, and that started to pique my interest. Our bin filling service has some pretty straightforward pseudocode - for bin in bins, for widget in widgets: bin.fill(widgets). Then those filled bins just sit waiting for the rest to be constructed before being returned to the monolith, and processed one by one. Could this be improved?
+
+<h2>The Request</h2>
+TBC...
 
 <hr/>
-<sup id="fn1">1. Phil Calcaldo's excellent blog post <a href="http://philcalcado.com/2015/09/08/how_we_ended_up_with_microservices.html" target="_blank">"How we ended up with microservices"</a> is a fantastic read<a href="#ref1" title="">↩</a></sup>
+<sup id="fn1">1. Phil Calcaldo's excellent blog post <a href="http://philcalcado.com/2015/09/08/how_we_ended_up_with_microservices.html" target="_blank">"How we ended up with microservices"</a> is a fantastic read if you're curious <a href="#ref1" title="">↩</a></sup>
+<sup id="fn1">2. Mobify had a great article on <a href="http://www.mobify.com/blog/sqlalchemy-memory-magic/">reducing memory with sqlalchemy</a> if you're interested in some of the ways to improve sqlalchemy performance, more focused at querying large sets of data. This one also proved invaluable.
