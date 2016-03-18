@@ -7,7 +7,7 @@ A recent project I was involved in included refactoring a bespoke bin-packing al
     <li>Greater extensibility thanks to separate release cycles</li>
     <li>General separation of concerns</li>
     <li>A pinch of curiosity</li>
-    <li>Plenty of other microservice benefits that I won't go into here <sup><a id="ref1" href="#footnote1">1</a></sup></li>
+    <li>Plenty of other microservice benefits that I won't go into here <sup><a id="ref1" href="#fn1">1</a></sup></li>
 </ul>
 
 However, during the switch, we ran into a few problems around memory and performance when consuming a large amount of json data from an HTTP response, and inserting it into the database. Here's how that went down.
@@ -183,5 +183,9 @@ Instant win! But for the raw file pointer, I had to pass stream=True into the re
 TBC...
 
 <hr/>
-<sup id="fn1">1. Phil Calcaldo's excellent blog post <a href="http://philcalcado.com/2015/09/08/how_we_ended_up_with_microservices.html" target="_blank">"How we ended up with microservices"</a> is a fantastic read if you're curious <a href="#ref1" title="">↩</a></sup>
-<sup id="fn1">2. Mobify had a great article on <a href="http://www.mobify.com/blog/sqlalchemy-memory-magic/">reducing memory with sqlalchemy</a> if you're interested in some of the ways to improve sqlalchemy performance, more focused at querying large sets of data. This one also proved invaluable.
+<ul>
+    <li><sup id="fn1">1. Phil Calcaldo's excellent blog post <a href="http://philcalcado.com/2015/09/08/how_we_ended_up_with_microservices.html" target="_blank">"How we ended up with microservices"</a> is a fantastic read if you're curious <a href="#ref1" title="">↩</a></sup>
+    </li>
+    <li><sup id="fn1">2. Mobify had a great article on <a href="http://www.mobify.com/blog/sqlalchemy-memory-magic/">reducing memory with sqlalchemy</a> if you're interested in some of the ways to improve sqlalchemy performance, more focused at querying large sets of data. This one also proved invaluable.
+    </li>
+</ul>

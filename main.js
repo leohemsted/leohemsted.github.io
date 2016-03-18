@@ -28,5 +28,5 @@ window.onload = function(){
 
     // select the first element and load its content
     document.querySelector('.nav li').classList.add('selected');
-    loadContent('content/large_json.html');
+    loadContent('content/index.html');
 };
